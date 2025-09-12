@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ESP32 Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body{font-family:Arial;max-width:900px;margin:20px auto;}
+    .tile{display:inline-block;width:180px;padding:10px;margin:5px;background:#f7f7f7;border-radius:10px;text-align:center;}
+    .chart-box{background:#fff;padding:15px;margin:20px 0;border-radius:10px;box-shadow:0 0 5px rgba(0,0,0,0.1);}
+  </style>
+</head>
+<body>
+  <h2>🌱 ESP32 Real-time Dashboard</h2>
+  <input id="wsUrl" value="ws://192.168.1.50:81" style="width:300px">
+  <button onclick="connectWS()">Connect</button>
+
+  <div>
+    <div class="tile"><b>🌡 Temp</b><div id="temp">--</div></div>
+    <div class="tile"><b>💧 Humidity</b><div id="hum">--</div></div>
+    <div class="tile"><b>🌞 Light</b><div id="light">--</div></div>
+    <div class="tile"><b>🌱 Soil</b><div id="soil">--</div></div>
+  </div>
+
+  <div class="chart-box">
+    <h3>🌡 Temperature (°C)</h3>
+    <canvas id="tempChart" height="100"></canvas>
+  </div>
+  <div class="chart-box">
+    <h3>💧 Humidity (%)</h3>
+    <canvas id="humChart" height="100"></canvas>
+  </div>
+  <div class="chart-box">
+    <h3>🌞 Light</h3>
+    <canvas id="lightChart" height="100"></canvas>
+  </div>
+  <div class="chart-box">
+    <h3>🌱 Soil Moisture (%)</h3>
+    <canvas id="soilChart" height="100"></canvas>
+  </div>
+
+<script>
+let ws;
+
+function makeChart(ctx,label,min=0,max=100){
+  return new Chart(ctx,{
+    type:"line",
+    data:{labels:[],datasets:[{label:label,data:[],borderColor:"",fill:false}]},
+    options:{scales:{y:{min:min,max:max}}}
+  });
+}
+
+let tempChart   = makeChart(document.getElementById("tempChart"),"Temp °C",0,50);
+tempChart.data.datasets[0].borderColor = "red";
+let humChart    = makeChart(document.getElementById("humChart"),"Humidity %",0,100);
+humChart.data.datasets[0].borderColor = "blue";
+let lightChart  = makeChart(document.getElementById("lightChart"),"Light",0,4095);
+lightChart.data.datasets[0].borderColor = "orange";
+let soilChart   = makeChart(document.getElementById("soilChart"),"Soil %",0,100);
+soilChart.data.datasets[0].borderColor = "green";
+
+function updateChart(chart,value){
+  let t = new Date().toLocaleTimeString();
+  chart.data.labels.push(t);
+  chart.data.datasets[0].data.push(value);
+  if(chart.data.labels.length>30){
+    chart.data.labels.shift();
+    chart.data.datasets[0].data.shift();
+  }
+  chart.update();
+}
+
+function connectWS(){
+  const url = document.getElementById("wsUrl").value;
+  if (!url) { alert('ใส่ ws://<ESP_IP>:81 ก่อน'); return; }
+  ws = new WebSocket(url);
+  ws.onopen = ()=>console.log("Connected");
+  ws.onmessage = (evt) => {
+    try {
+      const obj = JSON.parse(evt.data);
+      document.getElementById("temp").innerText = obj.temp + " °C";
+      document.getElementById("hum").innerText = obj.hum + " %";
+      document.getElementById("light").innerText = obj.light;
+      document.getElementById("soil").innerText = obj.soilPercent + " %";
+
+      updateChart(tempChart, obj.temp);
+      updateChart(humChart, obj.hum);
+      updateChart(lightChart, obj.light);
+      updateChart(soilChart, obj.soilPercent);
+    } catch(e) {
+      console.error("Invalid JSON", e, evt.data);
+    }
+  };
+  ws.onclose = ()=>console.log("WS closed");
+  ws.onerror = (e)=>console.error("WS error", e);
+}
+</script>
+</body>
+</html>
